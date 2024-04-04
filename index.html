@@ -1,0 +1,136 @@
+<!DOCTYPE html>
+<html>
+<head>
+  <meta charset="UTF-8">
+  <meta name="viewport" content="width=device-width, initial-scale=1.0">
+  <title>音声認識とWikipedia検索</title>
+  <style>
+    body {
+      font-family: Arial, sans-serif;
+      background-color: #f0f0f0;
+      margin: 0;
+      padding: 0;
+    }
+    .container {
+      display: flex;
+      flex-direction: column;
+      align-items: center;
+      justify-content: center;
+      height: 100vh;
+    }
+    .button {
+      font-size: 24px;
+      padding: 20px 40px;
+      margin: 20px;
+      border: none;
+      border-radius: 50px;
+      color: white;
+      cursor: pointer;
+      box-shadow: 0 4px 6px rgba(0, 0, 0, 0.1);
+      transition: all 0.3s ease;
+    }
+    .button:active {
+      transform: scale(0.95);
+    }
+    #start-btn {
+      background-color: #4CAF50;
+    }
+    #stop-btn {
+      background-color: #f44336;
+    }
+    #clear-btn {
+      background-color: #2196F3;
+    }
+    .hidden {
+      display: none;
+    }
+  </style>
+</head>
+<body>
+  <div class="container">
+    <button id="start-btn" class="button">音声認識開始</button>
+    <button id="stop-btn" class="button hidden">音声認識停止</button>
+    <button id="clear-btn" class="button hidden">テキスト削除</button>
+  </div>
+
+  <script>
+    const startBtn = document.querySelector('#start-btn');
+    const stopBtn = document.querySelector('#stop-btn');
+    const clearBtn = document.querySelector('#clear-btn');
+
+    SpeechRecognition = webkitSpeechRecognition || SpeechRecognition;
+    let recognition = new SpeechRecognition();
+    recognition.lang = 'ja-JP';
+    recognition.interimResults = true;
+    recognition.continuous = false;
+
+    let finalTranscript = '';
+    let timeoutId;
+
+    recognition.onresult = (event) => {
+      let interimTranscript = '';
+      for (let i = event.resultIndex; i < event.results.length; i++) {
+        let transcript = event.results[i][0].transcript;
+        if (event.results[i].isFinal) {
+          finalTranscript += transcript;
+        } else {
+          interimTranscript = transcript;
+        }
+      }
+
+      clearTimeout(timeoutId);
+      timeoutId = setTimeout(() => {
+        recognition.stop();
+      }, 1000);
+    }
+
+    recognition.onstart = () => {
+      startBtn.classList.add('hidden');
+      stopBtn.classList.remove('hidden');
+      clearBtn.classList.add('hidden');
+    }
+
+    recognition.onend = () => {
+      startBtn.classList.remove('hidden');
+      stopBtn.classList.add('hidden');
+      clearBtn.classList.remove('hidden');
+
+      if (finalTranscript !== '') {
+        searchWikipedia(finalTranscript);
+      }
+    }
+
+    startBtn.onclick = () => {
+      recognition.start();
+    };
+    stopBtn.onclick = () => {
+      recognition.stop();
+    };
+    clearBtn.onclick = () => {
+      finalTranscript = '';
+    };
+
+    function searchWikipedia(query) {
+      const url = `https://ja.wikipedia.org/w/api.php?action=query&list=search&srsearch=${encodeURIComponent(query)}&format=json&origin=*`;
+
+      fetch(url)
+        .then(response => response.json())
+        .then(data => {
+          if (data.query.search.length > 0) {
+            const page = data.query.search[0];
+            const summary = page.snippet.replace(/<[^>]+>/g, '');
+            speakText(`${page.title}。${summary}`);
+          } else {
+            speakText('該当するページが見つかりませんでした。');
+          }
+        });
+    }
+
+    function speakText(text) {
+      const utterance = new SpeechSynthesisUtterance(text);
+      utterance.lang = 'ja-JP';
+      speechSynthesis.speak(utterance);
+    }
+  </script>
+</body>
+</html>
